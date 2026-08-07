@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Activity, AlertTriangle, Lock, Send, ChevronRight, ShieldAlert, History, X } from "lucide-react";
 
-// Replace with your real Lemon Squeezy checkout link before going live
-https://medicheck.lemonsqueezy.com/checkout/buy/0895041b-85f2-48cd-b20b-9450db930598
-const FREE_CHECKS_PER_DAY = 3;
+// Replace with your real Lemon Squeezy checkout link before going li
+const LEMONSQUEEZY_CHECKOUT_URL = "https://medicheck.lemonsqueezy.com/checkout/buy/0895041b-85f2-48cd-b20b-9450db930598";
 const PLUS_PRICE = "R49/month";
 const PLUS_BENEFITS = [
   "Unlimited symptom checks, no daily cap",
