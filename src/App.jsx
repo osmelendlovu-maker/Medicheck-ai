@@ -238,8 +238,8 @@ export default function App() {
       </main>
 
       <footer style={{ textAlign: "center", padding: "16px 20px 32px", fontSize: "12px", color: "#8B98AC" }}>
-        <a href="/privacy" style={{ color: "#8B98AC", marginRight: "16px" }}>Privacy</a>
-        <a href="/terms" style={{ color: "#8B98AC" }}>Terms</a>
+        <a href="/privacy.html" style={{ color: "#8B98AC", marginRight: "16px" }}>Privacy</a>
+        <a href="/terms.html" style={{ color: "#8B98AC" }}>Terms</a>
       </footer>
 
       {showHistory && (
