@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Activity, AlertTriangle, Lock, Send, ChevronRight, ShieldAlert, History, X } from "lucide-react";
 
-// Replace with your real Lemon Squeezy checkout link before going li
-const LEMONSQUEEZY_CHECKOUT_URL ="https://medicheck.lemonsqueezy.com/checkout/buy/0895041b-85f2-48cd-b20b-9450db930598";const FREE_CHECKS_PER_DAY = 3;
+// Replace with your real Lemon Squeezy checkout link before going live
+const LEMONSQUEEZY_CHECKOUT_URL = "https://medicheck.lemonsqueezy.com/checkout/buy/0895041b-85f2-48cd-b20b-9450db930598";
+const FREE_CHECKS_PER_DAY = 3;
 const PLUS_PRICE = "R49/month";
 const PLUS_BENEFITS = [
   "Unlimited symptom checks, no daily cap",
@@ -236,6 +237,11 @@ export default function App() {
         )}
       </main>
 
+      <footer style={{ textAlign: "center", padding: "16px 20px 32px", fontSize: "12px", color: "#8B98AC" }}>
+        <a href="/privacy" style={{ color: "#8B98AC", marginRight: "16px" }}>Privacy</a>
+        <a href="/terms" style={{ color: "#8B98AC" }}>Terms</a>
+      </footer>
+
       {showHistory && (
         <div className="drawer-overlay" onClick={() => setShowHistory(false)}>
           <div className="drawer" onClick={(e) => e.stopPropagation()}>
@@ -271,4 +277,4 @@ function Section({ title, items, color }) {
       </ul>
     </div>
   );
-    }
+              }
