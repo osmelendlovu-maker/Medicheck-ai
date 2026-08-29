@@ -1,5 +1,7 @@
-// Vercel serverless function — runs on the server, never in the user's browser.
-// This is what keeps your GROQ_API_KEY secret and safe.
+import { generateAIResponse } from "../lib/aiProvider.js";
+
+// Vercel serverless function.
+// Handles MediCheck requests on the server.
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -7,13 +9,9 @@ export default async function handler(req, res) {
   }
 
   const { symptoms } = req.body || {};
+
   if (!symptoms || typeof symptoms !== "string") {
     return res.status(400).json({ error: "Missing symptoms" });
-  }
-
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: "Server is missing GROQ_API_KEY" });
   }
 
   const prompt = `You are MediCheck AI, a general health information assistant, not a doctor. A user describes symptoms and you give clear, careful, general information — never a diagnosis.
@@ -33,33 +31,16 @@ Respond ONLY with JSON, no preamble, no markdown fences, in this exact shape:
 If anything described sounds like a medical emergency (e.g. chest pain, difficulty breathing, stroke signs, severe bleeding, loss of consciousness), set urgency to "emergency" and make red_flags prominent.`;
 
   try {
-    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: "openai/gpt-oss-20b",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.4
-      })
-    });
+    const raw = await generateAIResponse(prompt);
 
-    if (!groqRes.ok) {
-      const errText = await groqRes.text();
-      console.error("Groq error:", errText);
-      return res.status(502).json({ error: "AI provider error" });
-    }
-
-    const data = await groqRes.json();
-    const raw = data.choices?.[0]?.message?.content || "";
     const clean = raw.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean);
 
     return res.status(200).json(parsed);
   } catch (e) {
     console.error(e);
-    return res.status(500).json({ error: "Failed to analyze symptoms" });
+    return res.status(500).json({
+      error: "Failed to analyze symptoms"
+    });
   }
-      }
+}
