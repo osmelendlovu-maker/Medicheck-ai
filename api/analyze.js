@@ -1,3 +1,4 @@
+import { generateAIResponse } from "../lib/aiProvider.js";
 import { checkSafety } from "../lib/safetyEngine.js";
 
 // Vercel serverless function.
