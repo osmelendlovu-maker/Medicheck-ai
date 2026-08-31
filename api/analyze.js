@@ -30,7 +30,7 @@ export default async function handler(req, res) {
   // --------------------------------------------------
 
   const safety = checkSafety(text);
-
+const followUpQuestions = getFollowUpQuestions(text);
   // Emergency situations are handled before AI analysis.
   if (safety.emergency) {
     return res.status(200).json({
