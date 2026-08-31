@@ -3,7 +3,7 @@ import { checkSafety } from "../lib/safetyEngine.js";
 import { getFollowUpQuestions } from "../lib/questionEngine.js";
 
 // Vercel serverless function.
-// Safety checks happen before AI analysis.
+// Handles MediCheck requests on the server.
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -26,13 +26,12 @@ export default async function handler(req, res) {
   }
 
   // --------------------------------------------------
-  // SAFETY LAYER
+  // MEDICHECK SAFETY LAYER
   // --------------------------------------------------
 
   const safety = checkSafety(text);
 
-  // If a possible emergency is detected,
-  // do NOT send the request to the AI.
+  // Emergency situations are handled before AI analysis.
   if (safety.emergency) {
     return res.status(200).json({
       urgency: "emergency",
@@ -46,10 +45,17 @@ export default async function handler(req, res) {
       red_flags: [
         "The safety system detected a possible emergency warning sign."
       ],
+      follow_up_questions: [],
       disclaimer:
         "MediCheck AI is not a diagnosis and cannot replace assessment by a healthcare professional."
     });
   }
+
+  // --------------------------------------------------
+  // MEDICHECK QUESTION ENGINE
+  // --------------------------------------------------
+
+  const followUpQuestions = getFollowUpQuestions(text);
 
   // --------------------------------------------------
   // AI ANALYSIS
@@ -72,6 +78,9 @@ If symptoms could potentially be serious, recommend appropriate professional med
 Symptoms described:
 "${text}"
 
+MediCheck identified these follow-up questions that may help gather more useful information:
+${JSON.stringify(followUpQuestions)}
+
 Return ONLY valid JSON in this exact shape:
 
 {
@@ -80,6 +89,7 @@ Return ONLY valid JSON in this exact shape:
   "possible_causes": ["short phrase", "short phrase", "short phrase"],
   "self_care": ["short actionable tip", "short actionable tip"],
   "red_flags": ["warning sign that should prompt urgent medical care", "another warning sign"],
+  "follow_up_questions": ["useful question", "useful question"],
   "disclaimer": "one sentence explaining that this is general information and not a diagnosis"
 }
 
@@ -88,8 +98,10 @@ Important safety rules:
 - Never claim certainty.
 - Never diagnose.
 - Never tell the user to ignore concerning symptoms.
+- Never recommend prescription medication or medication dosages.
 - If the described symptoms sound potentially serious, recommend seeing a healthcare professional.
 - If there is an immediate emergency, the user should contact local emergency services rather than relying on MediCheck AI.
+- Keep follow-up questions relevant to the symptoms.
 `;
 
   try {
@@ -102,7 +114,10 @@ Important safety rules:
 
     const parsed = JSON.parse(clean);
 
-    // Validate the AI response before returning it.
+    // --------------------------------------------------
+    // RESPONSE VALIDATION
+    // --------------------------------------------------
+
     const validUrgencies = [
       "emergency",
       "see_doctor_soon",
@@ -114,23 +129,32 @@ Important safety rules:
     }
 
     if (typeof parsed.summary !== "string") {
-      throw new Error("Invalid AI response");
+      throw new Error("Invalid summary returned by AI");
     }
 
     if (!Array.isArray(parsed.possible_causes)) {
-      throw new Error("Invalid AI response");
+      throw new Error("Invalid possible_causes returned by AI");
     }
 
     if (!Array.isArray(parsed.self_care)) {
-      throw new Error("Invalid AI response");
+      throw new Error("Invalid self_care returned by AI");
     }
 
     if (!Array.isArray(parsed.red_flags)) {
-      throw new Error("Invalid AI response");
+      throw new Error("Invalid red_flags returned by AI");
+    }
+
+    if (!Array.isArray(parsed.follow_up_questions)) {
+      parsed.follow_up_questions = followUpQuestions;
     }
 
     if (typeof parsed.disclaimer !== "string") {
-      throw new Error("Invalid AI response");
+      throw new Error("Invalid disclaimer returned by AI");
+    }
+
+    // MediCheck's own safety engine always wins.
+    if (safety.emergency) {
+      parsed.urgency = "emergency";
     }
 
     return res.status(200).json(parsed);
@@ -142,3 +166,4 @@ Important safety rules:
     });
   }
 }
+
