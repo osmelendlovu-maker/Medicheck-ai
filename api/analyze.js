@@ -1,5 +1,6 @@
 import { generateAIResponse } from "../lib/aiProvider.js";
 import { checkSafety } from "../lib/safetyEngine.js";
+import { getFollowUpQuestions } from "../lib/questionEngine.js";
 
 // Vercel serverless function.
 // Safety checks happen before AI analysis.
