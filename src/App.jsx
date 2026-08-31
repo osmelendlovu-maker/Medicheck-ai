@@ -1,10 +1,22 @@
 import React, { useState, useEffect } from "react";
-import { Activity, AlertTriangle, Lock, Send, ChevronRight, ShieldAlert, History, X } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  Lock,
+  Send,
+  ChevronRight,
+  ShieldAlert,
+  History,
+  X
+} from "lucide-react";
 
 // Replace with your real Lemon Squeezy checkout link before going live
-const LEMONSQUEEZY_CHECKOUT_URL = "https://medicheck.lemonsqueezy.com/checkout/buy/0895041b-85f2-48cd-b20b-9450db930598";
+const LEMONSQUEEZY_CHECKOUT_URL =
+  "https://medicheck.lemonsqueezy.com/checkout/buy/0895041b-85f2-48cd-b20b-9450db930598";
+
 const FREE_CHECKS_PER_DAY = 3;
 const PLUS_PRICE = "R49/month";
+
 const PLUS_BENEFITS = [
   "Unlimited symptom checks, no daily cap",
   "Full history saved and searchable, not just your last 10",
@@ -19,8 +31,13 @@ function todayKey() {
 function loadUsage() {
   try {
     const raw = localStorage.getItem("medicheck-usage");
-    const parsed = raw ? JSON.parse(raw) : { date: todayKey(), count: 0 };
-    return parsed.date === todayKey() ? parsed : { date: todayKey(), count: 0 };
+    const parsed = raw
+      ? JSON.parse(raw)
+      : { date: todayKey(), count: 0 };
+
+    return parsed.date === todayKey()
+      ? parsed
+      : { date: todayKey(), count: 0 };
   } catch {
     return { date: todayKey(), count: 0 };
   }
@@ -37,12 +54,14 @@ function loadHistory() {
 
 export default function App() {
   const [symptoms, setSymptoms] = useState("");
+  const [followUpAnswers, setFollowUpAnswers] = useState("");
   const [screen, setScreen] = useState("home");
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [usage, setUsage] = useState(loadUsage());
   const [history, setHistory] = useState(loadHistory());
   const [showHistory, setShowHistory] = useState(false);
+  const [isFollowUp, setIsFollowUp] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("medicheck-usage", JSON.stringify(usage));
@@ -52,44 +71,157 @@ export default function App() {
     localStorage.setItem("medicheck-history", JSON.stringify(history));
   }, [history]);
 
-  const remaining = Math.max(0, FREE_CHECKS_PER_DAY - usage.count);
+  const remaining = Math.max(
+    0,
+    FREE_CHECKS_PER_DAY - usage.count
+  );
 
-  async function runCheck() {
-    if (!symptoms.trim()) return;
-    if (remaining <= 0) {
+  async function runCheck(inputText = symptoms, countUsage = true) {
+    if (!inputText.trim()) return;
+
+    if (countUsage && remaining <= 0) {
       setScreen("paywall");
       return;
     }
+
     setError("");
     setScreen("loading");
 
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symptoms })
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          symptoms: inputText
+        })
       });
 
-      if (!res.ok) throw new Error("Request failed");
+      if (!res.ok) {
+        throw new Error("Request failed");
+      }
+
       const parsed = await res.json();
+
+      if (parsed.error) {
+        throw new Error(parsed.error);
+      }
 
       setResult(parsed);
       setScreen("result");
-      setUsage({ date: todayKey(), count: usage.count + 1 });
 
-      const entry = { date: new Date().toISOString(), symptoms, summary: parsed.summary, urgency: parsed.urgency };
-      setHistory([entry, ...history].slice(0, 10));
+      if (countUsage) {
+        setUsage({
+          date: todayKey(),
+          count: usage.count + 1
+        });
+
+        const entry = {
+          date: new Date().toISOString(),
+          symptoms: inputText,
+          summary: parsed.summary,
+          urgency: parsed.urgency
+        };
+
+        setHistory([entry, ...history].slice(0, 10));
+      }
     } catch (e) {
       console.error(e);
-      setError("Something went wrong reaching the AI. Please try again.");
+
+      setError(
+        "Something went wrong reaching the AI. Please try again."
+      );
+
       setScreen("home");
     }
   }
 
+  async function runFollowUpCheck() {
+    if (!followUpAnswers.trim() || !result) return;
+
+    const combinedSymptoms = `
+Original symptoms:
+${symptoms}
+
+Additional information from the follow-up questions:
+${followUpAnswers}
+`;
+
+    setIsFollowUp(true);
+    setError("");
+    setScreen("loading");
+
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          symptoms: combinedSymptoms
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error("Request failed");
+      }
+
+      const parsed = await res.json();
+
+      if (parsed.error) {
+        throw new Error(parsed.error);
+      }
+
+      setResult(parsed);
+      setScreen("result");
+      setFollowUpAnswers("");
+
+      const entry = {
+        date: new Date().toISOString(),
+        symptoms: combinedSymptoms,
+        summary: parsed.summary,
+        urgency: parsed.urgency
+      };
+
+      setHistory([entry, ...history].slice(0, 10));
+    } catch (e) {
+      console.error(e);
+
+      setError(
+        "Something went wrong while updating your assessment."
+      );
+
+      setScreen("result");
+    } finally {
+      setIsFollowUp(false);
+    }
+  }
+
+  function startNewCheck() {
+    setScreen("home");
+    setSymptoms("");
+    setFollowUpAnswers("");
+    setResult(null);
+    setError("");
+  }
+
   const urgencyStyles = {
-    emergency: { color: "#E85D5D", bg: "rgba(232,93,93,0.12)", label: "Seek care now" },
-    see_doctor_soon: { color: "#F0A868", bg: "rgba(240,168,104,0.12)", label: "See a doctor soon" },
-    monitor_at_home: { color: "#4FD1C5", bg: "rgba(79,209,197,0.12)", label: "Monitor at home" }
+    emergency: {
+      color: "#E85D5D",
+      bg: "rgba(232,93,93,0.12)",
+      label: "Seek care now"
+    },
+    see_doctor_soon: {
+      color: "#F0A868",
+      bg: "rgba(240,168,104,0.12)",
+      label: "See a doctor soon"
+    },
+    monitor_at_home: {
+      color: "#4FD1C5",
+      bg: "rgba(79,209,197,0.12)",
+      label: "Monitor at home"
+    }
   };
 
   return (
@@ -97,9 +229,15 @@ export default function App() {
       <header className="header">
         <div className="logo">
           <Activity size={22} color="#4FD1C5" />
-          <span className="display-font">MediCheck AI</span>
+          <span className="display-font">
+            MediCheck AI
+          </span>
         </div>
-        <button className="icon-btn" onClick={() => setShowHistory(true)}>
+
+        <button
+          className="icon-btn"
+          onClick={() => setShowHistory(true)}
+        >
           <History size={18} color="#8B98AC" />
         </button>
       </header>
@@ -107,25 +245,42 @@ export default function App() {
       <div className="usage-wrap">
         <div className="usage-row mono-font">
           <span>FREE CHECKS TODAY</span>
-          <span>{remaining} / {FREE_CHECKS_PER_DAY}</span>
+          <span>
+            {remaining} / {FREE_CHECKS_PER_DAY}
+          </span>
         </div>
+
         <div className="usage-track">
-          <div className="usage-fill" style={{ width: `${(remaining / FREE_CHECKS_PER_DAY) * 100}%` }} />
+          <div
+            className="usage-fill"
+            style={{
+              width: `${
+                (remaining / FREE_CHECKS_PER_DAY) * 100
+              }%`
+            }}
+          />
         </div>
       </div>
 
       <main>
         {screen === "home" && (
           <>
-            <h1 className="display-font">What's going on?</h1>
+            <h1 className="display-font">
+              What's going on?
+            </h1>
+
             <p className="subtext">
-              Describe your symptoms in your own words. MediCheck AI gives general guidance — it never replaces a doctor.
+              Describe your symptoms in your own words.
+              MediCheck AI gives general guidance — it
+              never replaces a doctor.
             </p>
 
             <textarea
               className="symptom-input"
               value={symptoms}
-              onChange={(e) => setSymptoms(e.target.value)}
+              onChange={(e) =>
+                setSymptoms(e.target.value)
+              }
               placeholder="e.g. I've had a sore throat and mild fever since yesterday..."
               rows={6}
             />
@@ -137,16 +292,31 @@ export default function App() {
               </div>
             )}
 
-            <button className="btn-primary" disabled={!symptoms.trim()} onClick={runCheck}>
+            <button
+              className="btn-primary"
+              disabled={!symptoms.trim()}
+              onClick={() => runCheck()}
+            >
               <Send size={16} />
               Check my symptoms
             </button>
 
             <div className="notice">
-              <ShieldAlert size={16} color="#F0A868" style={{ marginTop: 2, flexShrink: 0 }} />
+              <ShieldAlert
+                size={16}
+                color="#F0A868"
+                style={{
+                  marginTop: 2,
+                  flexShrink: 0
+                }}
+              />
+
               <p>
-                If you're having chest pain, trouble breathing, severe bleeding, or think this is an emergency,
-                contact local emergency services immediately — don't wait on an AI check.
+                If you're having chest pain, trouble
+                breathing, severe bleeding, or think this
+                is an emergency, contact local emergency
+                services immediately — don't wait on an
+                AI check.
               </p>
             </div>
           </>
@@ -154,7 +324,11 @@ export default function App() {
 
         {screen === "loading" && (
           <div className="loading-wrap">
-            <svg width="220" height="60" viewBox="0 0 240 60">
+            <svg
+              width="220"
+              height="60"
+              viewBox="0 0 240 60"
+            >
               <polyline
                 className="pulse-path"
                 points="0,30 40,30 55,10 70,50 85,30 240,30"
@@ -165,7 +339,10 @@ export default function App() {
                 strokeLinejoin="round"
               />
             </svg>
-            <p className="loading-label mono-font">ANALYZING SYMPTOMS...</p>
+
+            <p className="loading-label mono-font">
+              ANALYZING SYMPTOMS...
+            </p>
           </div>
         )}
 
@@ -174,43 +351,155 @@ export default function App() {
             <div
               className="urgency-card"
               style={{
-                backgroundColor: urgencyStyles[result.urgency]?.bg,
-                borderColor: urgencyStyles[result.urgency]?.color
+                backgroundColor:
+                  urgencyStyles[result.urgency]?.bg,
+                borderColor:
+                  urgencyStyles[result.urgency]?.color
               }}
             >
-              <div className="urgency-label mono-font" style={{ color: urgencyStyles[result.urgency]?.color }}>
+              <div
+                className="urgency-label mono-font"
+                style={{
+                  color:
+                    urgencyStyles[result.urgency]?.color
+                }}
+              >
                 <Activity size={14} />
+
                 {urgencyStyles[result.urgency]?.label.toUpperCase()}
               </div>
-              <p className="urgency-summary">{result.summary}</p>
+
+              <p className="urgency-summary">
+                {result.summary}
+              </p>
             </div>
 
-            <Section title="Possible causes to discuss with a doctor" items={result.possible_causes} color="#4FD1C5" />
-            <Section title="Self-care in the meantime" items={result.self_care} color="#4FD1C5" />
+            <Section
+              title="Possible causes to discuss with a doctor"
+              items={result.possible_causes}
+              color="#4FD1C5"
+            />
+
+            <Section
+              title="Self-care in the meantime"
+              items={result.self_care}
+              color="#4FD1C5"
+            />
+
             {result.red_flags?.length > 0 && (
-              <Section title="Seek care immediately if you notice" items={result.red_flags} color="#E85D5D" />
+              <Section
+                title="Seek care immediately if you notice"
+                items={result.red_flags}
+                color="#E85D5D"
+              />
             )}
 
-            <p className="disclaimer">{result.disclaimer}</p>
+            <p className="disclaimer">
+              {result.disclaimer}
+            </p>
+
+            {result.follow_up_questions?.length > 0 &&
+              result.urgency !== "emergency" && (
+                <div className="section">
+                  <p
+                    className="section-title mono-font"
+                    style={{ color: "#4FD1C5" }}
+                  >
+                    MAKE YOUR CHECK MORE INFORMATIVE
+                  </p>
+
+                  <p className="subtext">
+                    A few additional details may help
+                    provide more relevant general
+                    information.
+                  </p>
+
+                  <ul>
+                    {result.follow_up_questions.map(
+                      (question, index) => (
+                        <li key={index}>
+                          <span
+                            className="dot"
+                            style={{
+                              color: "#4FD1C5"
+                            }}
+                          >
+                            ●
+                          </span>
+
+                          <span>{question}</span>
+                        </li>
+                      )
+                    )}
+                  </ul>
+
+                  <textarea
+                    className="symptom-input"
+                    value={followUpAnswers}
+                    onChange={(e) =>
+                      setFollowUpAnswers(
+                        e.target.value
+                      )
+                    }
+                    placeholder="Answer the questions above in your own words..."
+                    rows={5}
+                  />
+
+                  <button
+                    className="btn-primary"
+                    disabled={!followUpAnswers.trim()}
+                    onClick={runFollowUpCheck}
+                  >
+                    <Send size={16} />
+                    Update my check
+                  </button>
+                </div>
+              )}
 
             <div className="upgrade-card">
               <div className="upgrade-head">
-                <span className="display-font">MediCheck AI Plus</span>
-                <span className="upgrade-price mono-font">{PLUS_PRICE}</span>
+                <span className="display-font">
+                  MediCheck AI Plus
+                </span>
+
+                <span className="upgrade-price mono-font">
+                  {PLUS_PRICE}
+                </span>
               </div>
+
               <ul>
-                {PLUS_BENEFITS.map((b, i) => (
-                  <li key={i}><span style={{ color: "#4FD1C5" }}>●</span><span>{b}</span></li>
+                {PLUS_BENEFITS.map((benefit, index) => (
+                  <li key={index}>
+                    <span style={{ color: "#4FD1C5" }}>
+                      ●
+                    </span>
+
+                    <span>{benefit}</span>
+                  </li>
                 ))}
               </ul>
-              <button className="btn-primary" style={{ marginTop: 0, width: "100%" }} onClick={() => window.open(LEMONSQUEEZY_CHECKOUT_URL, "_blank")}>
-                Upgrade to Plus <ChevronRight size={16} />
+
+              <button
+                className="btn-primary"
+                style={{
+                  marginTop: 0,
+                  width: "100%"
+                }}
+                onClick={() =>
+                  window.open(
+                    LEMONSQUEEZY_CHECKOUT_URL,
+                    "_blank"
+                  )
+                }
+              >
+                Upgrade to Plus
+                <ChevronRight size={16} />
               </button>
             </div>
 
             <button
               className="btn-secondary"
-              onClick={() => { setScreen("home"); setSymptoms(""); setResult(null); }}
+              onClick={startNewCheck}
             >
               New check
             </button>
@@ -219,43 +508,126 @@ export default function App() {
 
         {screen === "paywall" && (
           <div className="paywall">
-            <div className="paywall-icon"><Lock size={24} color="#4FD1C5" /></div>
-            <h2 className="display-font">You're out of free checks today</h2>
-            <p className="paywall-sub">Upgrade to MediCheck AI Plus — {PLUS_PRICE} — for:</p>
+            <div className="paywall-icon">
+              <Lock size={24} color="#4FD1C5" />
+            </div>
+
+            <h2 className="display-font">
+              You're out of free checks today
+            </h2>
+
+            <p className="paywall-sub">
+              Upgrade to MediCheck AI Plus —{" "}
+              {PLUS_PRICE} — for:
+            </p>
+
             <ul>
-              {PLUS_BENEFITS.map((b, i) => (
-                <li key={i}><span style={{ color: "#4FD1C5" }}>●</span><span>{b}</span></li>
+              {PLUS_BENEFITS.map((benefit, index) => (
+                <li key={index}>
+                  <span style={{ color: "#4FD1C5" }}>
+                    ●
+                  </span>
+
+                  <span>{benefit}</span>
+                </li>
               ))}
             </ul>
-            <button className="btn-primary" style={{ width: "100%", marginTop: 0 }} onClick={() => window.open(LEMONSQUEEZY_CHECKOUT_URL, "_blank")}>
-              Upgrade now <ChevronRight size={16} />
+
+            <button
+              className="btn-primary"
+              style={{
+                width: "100%",
+                marginTop: 0
+              }}
+              onClick={() =>
+                window.open(
+                  LEMONSQUEEZY_CHECKOUT_URL,
+                  "_blank"
+                )
+              }
+            >
+              Upgrade now
+              <ChevronRight size={16} />
             </button>
-            <button className="link-btn" onClick={() => setScreen("home")}>
+
+            <button
+              className="link-btn"
+              onClick={() => setScreen("home")}
+            >
               Maybe later — I'll wait until tomorrow
             </button>
           </div>
         )}
       </main>
 
-      <footer style={{ textAlign: "center", padding: "16px 20px 32px", fontSize: "12px", color: "#8B98AC" }}>
-        <a href="/privacy.html" style={{ color: "#8B98AC", marginRight: "16px" }}>Privacy</a>
-        <a href="/terms.html" style={{ color: "#8B98AC" }}>Terms</a>
+      <footer
+        style={{
+          textAlign: "center",
+          padding: "16px 20px 32px",
+          fontSize: "12px",
+          color: "#8B98AC"
+        }}
+      >
+        <a
+          href="/privacy.html"
+          style={{
+            color: "#8B98AC",
+            marginRight: "16px"
+          }}
+        >
+          Privacy
+        </a>
+
+        <a
+          href="/terms.html"
+          style={{ color: "#8B98AC" }}
+        >
+          Terms
+        </a>
       </footer>
 
       {showHistory && (
-        <div className="drawer-overlay" onClick={() => setShowHistory(false)}>
-          <div className="drawer" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="drawer-overlay"
+          onClick={() => setShowHistory(false)}
+        >
+          <div
+            className="drawer"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="drawer-head">
-              <h3 className="display-font">Recent checks</h3>
-              <button className="icon-btn" onClick={() => setShowHistory(false)}>
+              <h3 className="display-font">
+                Recent checks
+              </h3>
+
+              <button
+                className="icon-btn"
+                onClick={() => setShowHistory(false)}
+              >
                 <X size={16} color="#8B98AC" />
               </button>
             </div>
-            {history.length === 0 && <p className="empty-text">No checks yet.</p>}
-            {history.map((h, i) => (
-              <div key={i} className="history-item">
-                <p className="date mono-font">{new Date(h.date).toLocaleDateString()}</p>
-                <p className="summary">{h.summary}</p>
+
+            {history.length === 0 && (
+              <p className="empty-text">
+                No checks yet.
+              </p>
+            )}
+
+            {history.map((entry, index) => (
+              <div
+                key={index}
+                className="history-item"
+              >
+                <p className="date mono-font">
+                  {new Date(
+                    entry.date
+                  ).toLocaleDateString()}
+                </p>
+
+                <p className="summary">
+                  {entry.summary}
+                </p>
               </div>
             ))}
           </div>
@@ -266,15 +638,33 @@ export default function App() {
 }
 
 function Section({ title, items, color }) {
-  if (!items || items.length === 0) return null;
+  if (!items || items.length === 0) {
+    return null;
+  }
+
   return (
     <div className="section">
-      <p className="section-title mono-font" style={{ color }}>{title.toUpperCase()}</p>
+      <p
+        className="section-title mono-font"
+        style={{ color }}
+      >
+        {title.toUpperCase()}
+      </p>
+
       <ul>
-        {items.map((item, i) => (
-          <li key={i}><span className="dot" style={{ color }}>●</span><span>{item}</span></li>
+        {items.map((item, index) => (
+          <li key={index}>
+            <span
+              className="dot"
+              style={{ color }}
+            >
+              ●
+            </span>
+
+            <span>{item}</span>
+          </li>
         ))}
       </ul>
     </div>
   );
-              }
+        }
